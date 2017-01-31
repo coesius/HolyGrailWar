@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>圣杯大战v0.0.1</title>
+		<meta charset="UTF-8">
+		<script src="/javascripts/jquery-3.1.1.min.js"></script>
+		<script src="/javascripts/socket.io-1.4.5.js"></script>
+		<script src="/javascripts/bootstrap.min.js"></script>
+		<script src="/javascripts/vue.min.js"></script>
+
+		<link rel="stylesheet" href="/stylesheets/bootstrap.min.css")></link>
+	</head>
+	<body>
+		<div class="container">
+			<h1>圣杯大战V0.0.1</h1>
+			<div id="playerList" style="margin-bottom: 20px">
+				<table class="table table-striped">
+					<tr>
+						<td class="col-md-1">玩家</td>
+						<td class="col-md-1">从者</td>
+						<td class="col-md-1">耐久</td>
+						<td class="col-md-1">攻</td>
+						<td class="col-md-1">防</td>
+						<td class="col-md-1">速</td>
+						<td class="col-md-1">场所</td>
+						<td class="col-md-2">技能</td>
+						<td class="col-md-2">发起决斗</td>
+						<td class="col-md-1">删除/确认</td>
+					</tr>
+					<tr v-for="(player, index) in players">
+						<td class="col-md-1">
+							<template v-if="player.confirmed">
+								{{player.name}}
+							</template>
+							<template v-else>
+								<input type="text" class="form-control" v-model="player.name"></input>
+							</template>
+						</td>
+						<td class="col-md-1"> {{player.servant.name}} </td>
+						<td class="col-md-1"> {{player.servant.endurance}} </td>
+						<td class="col-md-1"> {{player.servant.attack}} </td>
+						<td class="col-md-1"> {{player.servant.defense}} </td>
+						<td class="col-md-1"> {{player.servant.speed}} </td>
+						<td class="col-md-1">
+							<select class="form-control" v-bind:disabled="!player.confirmed || player.servant.freezed" v-model="player.selectedScene" v-on:change="changeScene(player)">
+								<template v-for="(value, key) in sceneData">
+									<option v-if="value.enabled" v-bind:value="key"> {{value.name}} </option>
+								</template>
+							</select>
+						 </td>
+						<td class="col-md-2">
+							<div v-for="skill in player.servant.skill">
+								<button class="btn btn-default col-md-12" v-bind:disabled="!skill.enabled" v-on:click="skill.func()">
+									{{skill.name}}
+								</button>
+							</div>
+						</td>
+						<td class="col-md-2">
+							<form class="form-inline">
+								<select class="form-control" v-bind:disabled="!player.confirmed" v-model="player.servant.duelTarget">
+									<template v-for="opponent in player.servant.scene.playerList">
+										<template v-if="opponent !== player && player.servant.scene !== sceneData.default">
+											<option> {{opponent.servant.name}} </option>
+										</template>
+									</template>
+								</select>
+								<button type="button" class="btn btn-default" v-on:click="initDuel(player.servant)">决斗</button>
+							</form>
+						</td>
+						<td class="col-md-1">
+							<template v-if="player.confirmed">
+								<button class="btn btn-default btn-sm" v-on:click="deletePlayer(index)">删除</button>
+							</template>
+							<template v-else>
+								<button class="btn btn-default btn-sm" v-on:click="confirmPlayer(index)">确认</button>
+							</template>
+						</td>
+					</tr>
+				</table>
+				<button class="btn btn-default" v-on:click="addPlayer()">添加新玩家</button>
+			</div>
+			<div class=col-md-12>
+				<div class="col-md-3" id="classList">
+					<table class="table table-striped">
+						<tr>
+							<td class="col-md-2">职介</td>
+							<td class="col-md-1">操作</td>
+						</tr>
+						<tr v-for="(value, key) in servantData">
+							<td class="col-md-2"> {{key}} </td>
+							<td class="col-md-1">
+								<template v-if="value.enabled">
+									<button class="btn btn-default" v-on:click="disableClass(key)">禁用职介</button>
+								</template>
+								<template v-else>
+									<button class="btn btn-default" v-on:click="enableClass(key)">启用职介</button>
+								</template>
+							</td>
+						</tr>
+					</table>
+				</div>
+				<div class="col-md-9" id="sceneList">
+					<table class="table table-striped">
+						<tr>
+							<td class="col-md-1">场景</td>
+							<td class="col-md-5">玩家</td>
+							<td class="col-md-1">生效</td>
+							<td class="col-md-1">票数</td>
+							<td class="col-md-1">投票</td>
+						</tr>
+						<template v-for="scene in sceneData">
+							<template v-if="scene.visable">
+								<tr >
+									<td class="col-md-1"> {{scene.name}} </td>
+									<td class="col-md-5">
+										<template v-for="player in scene.playerList">
+											{{player.servant.name}}
+										</template>
+									</td>
+									<td class="col-md-1">
+										<button class="btn btn-default" v-on:click="scene.func()" v-bind:disabled="!scene.enabled">
+											生效
+										</button>
+									</td>
+									<td class="col-md-1"> {{scene.vote}} </td>
+									<td class="col-md-1">
+										<template v-if="scene.enabled">
+											<button class="btn btn-default" v-on:click="incVote(scene)" v-bind:disabled="!scene.destroyable">
+												投票
+											</button>
+										</template>
+										<template v-else>
+											<button class="btn btn-default" v-on:click="restoreScene(scene)">
+												还原
+											</button>
+										</template>
+									</td>
+								</tr>
+							</template>
+						</template>
+					</table>
+					<button class="btn btn-default" v-on:click="boomScene()">炸毁场景</button>
+					<button class="btn btn-default" v-on:click="resetVote()">重置投票</button>
+				</div>
+			</div>
+			<div class="col-md-12" id="duelList">
+				<table class="table table-striped col-md-6">
+					<tr>
+						<td class="col-md-2">进攻方</td>
+						<td class="col-md-2">防守方</td>
+						<td class="col-md-2">操作</td>
+					</tr>
+					<tr v-for="(duel, index) in duelData">
+						<td class="col-md-2"> {{duel.attacker.name}} </td>
+						<td class="col-md-2"> {{duel.defender.name}} </td>
+						<td class="col-md-2">
+							<button class="btn btn-default" v-on:click="executeDuel(index)">执行</button>
+							<button class="btn btn-default" v-on:click="cancelDuel(index)">取消</button>
+						</td>
+					</tr>
+				</table>
+			</div>
+			<div>
+				<button class="btn btn-default">重启游戏</button>
+			</div>
+
+			<div class="modal fade" role="dialog" id="forrestModal">
+				<div class="modal-dialog" role="document">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title">小树林</h5>
+						</div>
+						<div class="modal-body">
+							将额外的1点耐久分配给：
+							<select class="form-control" v-model="chosen">
+								<template v-if="forrest.playerList[0]">
+									<option value="0"> {{forrest.playerList[0].servant.name}} </option>
+								</template>
+								<template v-if="forrest.playerList[1]">
+									<option value="1"> {{forrest.playerList[1].servant.name}} </option>
+								</template>
+							</select>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+							<button type="button" class="btn btn-primary" data-dismiss="modal" v-on:click="averageEndurance()">确认</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="modal fade" role="dialog" id="mutouModal">
+				<div class="modal-dialog" role="document">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title">枯木为剑</h5>
+						</div>
+						<div class="modal-body">
+							决斗目标：
+							<select class="form-control" v-model="mutou.duelTarget">
+								<option v-for="player in forrest.playerList"> {{player.servant.name}} </option>
+							</select>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+							<button type="button" class="btn btn-primary" data-dismiss="modal" v-on:click="initDuel(mutou)">确认</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="modal fade" role="dialog" id="mengchengModal">
+				<div class="modal-dialog" role="document">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title">永恒绽放之枪</h5>
+						</div>
+						<div class="modal-body">
+							<div class="form-inline">
+								形态：
+								<select class="form-control" v-model="lancePhase">
+									<option value="ice-cast">冰-生效</option>
+									<option value="ice-dispel">冰-解除</option>
+									<option value="fire">火</option>
+								</select>
+								<template v-if="lancePhase !== 'ice-dispel'">
+									目标：
+									<select class="form-control" v-model="lanceTarget">
+										<option v-for="player in players"> {{player.servant.name}} </option>
+									</select>
+								</template>
+							</div>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+							<button type="button" class="btn btn-primary" data-dismiss="modal" v-on:click="castLance()">确认</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</body>
+	<footer>
+		<script src="/javascripts/HolyGrailWar.js"></script>
+	</footer>
+</html>
