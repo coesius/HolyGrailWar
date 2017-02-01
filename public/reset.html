@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script src="/javascripts/socket.io-1.4.5.js"></script>
+		<script type="text/javascript">
+			var host = window.location.hostname;
+			var socket = io(host + ':8001');
+
+			socket.emit('reset', {});
+		</script>
+	</head>
+</html>

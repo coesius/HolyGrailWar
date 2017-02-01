@@ -42,7 +42,7 @@
 						<td class="col-md-1"> {{player.servant.defense}} </td>
 						<td class="col-md-1"> {{player.servant.speed}} </td>
 						<td class="col-md-1">
-							<select class="form-control" v-bind:disabled="!player.confirmed || player.servant.freezed" v-model="player.selectedScene" v-on:change="changeScene(player)">
+							<select class="form-control" v-bind:disabled="!player.confirmed || player.servant.freezed" v-model="player.selectedScene" v-on:change="changeScene(index)">
 								<template v-for="(value, key) in sceneData">
 									<option v-if="value.enabled" v-bind:value="key"> {{value.name}} </option>
 								</template>
@@ -64,7 +64,7 @@
 										</template>
 									</template>
 								</select>
-								<button type="button" class="btn btn-default" v-on:click="initDuel(player.servant)">决斗</button>
+								<button type="button" class="btn btn-default" v-on:click="initDuel(index)">决斗</button>
 							</form>
 						</td>
 						<td class="col-md-1">
@@ -161,7 +161,7 @@
 				</table>
 			</div>
 			<div>
-				<button class="btn btn-default">重启游戏</button>
+				<button class="btn btn-default" id="restart" v-on:click="restartGame()">重启游戏</button>
 			</div>
 
 			<div class="modal fade" role="dialog" id="forrestModal">
@@ -171,15 +171,17 @@
 							<h5 class="modal-title">小树林</h5>
 						</div>
 						<div class="modal-body">
-							将额外的1点耐久分配给：
-							<select class="form-control" v-model="chosen">
-								<template v-if="forrest.playerList[0]">
-									<option value="0"> {{forrest.playerList[0].servant.name}} </option>
-								</template>
-								<template v-if="forrest.playerList[1]">
-									<option value="1"> {{forrest.playerList[1].servant.name}} </option>
-								</template>
-							</select>
+							<div class="form-inline">
+								将额外的1点耐久分配给：
+								<select class="form-control" v-model="chosen">
+									<template v-if="forrest.playerList[0]">
+										<option value="0"> {{forrest.playerList[0].servant.name}} </option>
+									</template>
+									<template v-if="forrest.playerList[1]">
+										<option value="1"> {{forrest.playerList[1].servant.name}} </option>
+									</template>
+								</select>
+							</div>
 						</div>
 						<div class="modal-footer">
 							<button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
@@ -196,14 +198,16 @@
 							<h5 class="modal-title">枯木为剑</h5>
 						</div>
 						<div class="modal-body">
-							决斗目标：
-							<select class="form-control" v-model="mutou.duelTarget">
-								<option v-for="player in forrest.playerList"> {{player.servant.name}} </option>
-							</select>
+							<div class="form-inline">
+								决斗目标：
+								<select class="form-control" v-model="mutou.duelTarget">
+									<option v-for="player in forrest.playerList"> {{player.servant.name}} </option>
+								</select>
+							</div>
 						</div>
 						<div class="modal-footer">
 							<button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
-							<button type="button" class="btn btn-primary" data-dismiss="modal" v-on:click="initDuel(mutou)">确认</button>
+							<button type="button" class="btn btn-primary" data-dismiss="modal" v-on:click="initMutouDuel()">确认</button>
 						</div>
 					</div>
 				</div>

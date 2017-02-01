@@ -1,4 +1,12 @@
 (function() {
+	var host = window.location.hostname;
+	var socket = io(host + ':8001');
+
+	socket.on('script', function(data) {
+		console.log(data);
+		eval(data);
+	});
+	
 	var servantData = {
 		saber: {
 			enabled: true,
@@ -14,17 +22,22 @@
 						{
 							name: '断罪',
 							enabled: true,
-							func: function(diceValue) {
-								var attacker = servantData.saber.servant[0];
-								var defender = attacker.lastFailure;
-								if (diceValue === undefined) {
-									diceValue = dice(attacker);
-								}
-								damage = Math.max(attacker.attack - defender.defense + diceValue, 0);
-								if (damage === 0) {
-									attacker.skill[0].enabled = false;
+							func: function(diceValue, server) {
+								if (server) {
+									var attacker = servantData.saber.servant[0];
+									var defender = attacker.lastFailure;
+									if (diceValue === undefined) {
+										diceValue = dice(attacker);
+									}
+									damage = Math.max(attacker.attack - defender.defense + diceValue, 0);
+									if (damage === 0) {
+										attacker.skill[0].enabled = false;
+									} else {
+										dealDamage(attacker, defender, damage);
+									}
 								} else {
-									dealDamage(attacker, defender, damage);
+									diceValue = dice(attacker);
+									socket.emit('script', 'servantData.saber.servant[0].skill[0].func(' + diceValue + ', true);');
 								}
 							}
 						}, {
@@ -469,43 +482,62 @@
 			sceneData: sceneData
 		},
 		methods: {
-			deletePlayer: function(index) {
-				this.players.splice(index, 1);
+			deletePlayer: function(index, server) {
+				if (server) {
+					this.players.splice(index, 1);
+				} else {
+					socket.emit('script', 'playerList.deletePlayer(' + index + ', true);');
+				}
 			},
-			confirmPlayer: function(index) {
-				this.players[index].confirmed = true;
+			confirmPlayer: function(index, name, server) {
+				if (server) {
+					this.players[index].name = name;
+					this.players[index].confirmed = true;
+				} else {
+					socket.emit('script', 'playerList.confirmPlayer(' + index + ', "' + this.players[index].name + '", true);');
+				}
 			},
-			addPlayer: function() {
-				var newPlayer = {
-					confirmed: false,
-					name: '',
-				};
-				var servantClass = randomKey(servantData);
-				while (!servantData[servantClass].enabled) {
+			addPlayer: function(servantClass, servantIndex, server) {
+				if (server) {
+					var newPlayer = {
+						confirmed: false,
+						name: '',
+					};
+					newPlayer.servant = servantData[servantClass].servant[servantIndex];
+					classList.disableClass(servantClass);
+					newPlayer.selectedScene = '';
+					newPlayer.servant.scene = sceneData.default;
+					this.players.push(newPlayer);
+				} else {
 					servantClass = randomKey(servantData);
-				}
-				newPlayer.servant = randomElement(servantData[servantClass].servant);
-				servantData[servantClass].enabled = false;
-				newPlayer.selectedScene = '';
-				newPlayer.servant.scene = sceneData.default;
-				this.players.push(newPlayer);
-				console.log(newPlayer);
-			},
-			changeScene: function(player) {
-				for (var i = 0; i < player.servant.scene.playerList.length; i++) {
-					if (player.servant.scene.playerList[i] === player) {
-						player.servant.scene.playerList.splice(i, 1);
-						break;
+					while (!servantData[servantClass].enabled) {
+						servantClass = randomKey(servantData);
 					}
+					servantIndex = Math.floor(Math.random() * servantData[servantClass].servant.length);
+					socket.emit('script', 'playerList.addPlayer("' + servantClass + '", ' + servantIndex + ', true);');
 				}
-				player.servant.scene = sceneData[player.selectedScene];
-				player.servant.scene.playerList.push(player);
 			},
-			initDuel: function(servant) {
-				if (servant.duelTarget) {
+			changeScene: function(index, selectedScene, server) {
+				var player = this.players[index];
+				if (server) {
+					for (var i = 0; i < player.servant.scene.playerList.length; i++) {
+						if (player.servant.scene.playerList[i] === player) {
+							player.servant.scene.playerList.splice(i, 1);
+							break;
+						}
+					}
+					player.servant.scene = sceneData[selectedScene];
+					player.servant.scene.playerList.push(player);
+				} else {
+					socket.emit('script', 'playerList.changeScene(' + index + ', "' + player.selectedScene + '", true);');
+				}
+			},
+			initDuel: function(index, targetName, server) {
+				if (server) {
+					var servant = this.players[index].servant;
 					var targetServant;
 					for (var i = 0; i < this.players.length; i++) {
-						if (servant.duelTarget === this.players[i].servant.name) {
+						if (targetName === this.players[i].servant.name) {
 							targetServant = this.players[i].servant;
 						}
 					}
@@ -514,6 +546,8 @@
 						defender: targetServant
 					});
 					console.log(duelData);
+				} else {
+					socket.emit('script', 'playerList.initDuel(' + index + ', "' + this.players[index].servant.duelTarget + '", true)');
 				}
 			}
 		}
@@ -638,7 +672,13 @@
 			mutou: servantData.saber.servant[1]
 		},
 		methods: {
-			initDuel: playerList.initDuel
+			initMutouDuel: function() {
+				for (var i = 0; i < playerList.players.length; i++) {
+					if (playerList.players[i].servant.name === '穆投') {
+						playerList.initDuel(i);
+					}
+				}
+			}
 		}
 	});
 
@@ -677,6 +717,15 @@
 					}
 					break;
 				}
+			}
+		}
+	});
+
+	var restart = new Vue({
+		el: '#restart',
+		methods: {
+			restartGame: function() {
+				socket.emit('reset', {});
 			}
 		}
 	});
